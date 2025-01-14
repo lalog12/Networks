@@ -9,8 +9,8 @@ CFLAGS = -g -Wall -pedantic -std=gnu99
 
 all: trace
 
-trace: trace.c
-		$(CC) $(CFLAGS) -o $@ trace.c $(LIBS)
+trace: trace.c trace.h checksum.h checksum.c
+		$(CC) $(CFLAGS) -o $@ trace.c checksum.c $(LIBS)
 
 clean:
 		rm -f trace
