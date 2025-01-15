@@ -10,6 +10,30 @@ int main(int argc, char *argv[]){
     return 0;
 }
 
+void TCP_print(const u_int8_t *data){
+    printf("\n\tTCP Header\n");
+    printf("\t\tSource Port: %d\n", ntohs(*(uint16_t*)&data[34]));
+    printf("\t\tDest Port: %d\n", ntohs(*(uint16_t*)&data[36]));
+    printf("\t\tSequence Number: %d\n", ntohl(*(uint32_t*)&data[38]));
+    printf("\t\tAck Number: %u\n", ntohl(*(u_int32_t*)&data[42]));
+    printf("\t\tData Offset (bytes): %d\n", (data[14] & 0x0f) * 4);
+    printf("\t\tSYN Flag: %s\n", get_yes_no(data[47] & 0x02));
+    printf("\t\tRST Flag: %s\n", get_yes_no(data[47] & 0x04));
+    printf("\t\tFIN Flag: %s\n", get_yes_no(data[47] & 0x01));
+    printf("\t\tACK Flag: %s\n", get_yes_no(data[47] & 0x08));
+    printf("\t\tWindow Size: %d\n", ntohs(*(uint16_t*)&data[48]));
+   // printf("\t\tChecksum: %s (0x%04x)\n");
+}
+
+char *get_yes_no(uint8_t flag){
+    if(flag != 0){
+        return "Yes";
+    }
+    else{
+        return "No";
+    }
+}
+
 void IP_print(const u_int8_t *data){
 
     printf("\tIP Header\n");
@@ -20,14 +44,14 @@ void IP_print(const u_int8_t *data){
     printf("\t\t   ECN bits: %d\n", data[15] & 0x03);
     printf("\t\tTTL: %d\n", data[22]);
     printf("\t\tProtocol: %s\n", get_protocol(data[23]));
-    printf("\t\tChecksum: %s (0x%04x)\n", get_checksum((unsigned short*)&data[14], (data[14] & 0x0f) * 4, data[24]), data[24] << 8 | data[25]);
+    printf("\t\tChecksum: %s (0x%04x)\n", get_checksum((unsigned short*)&data[14], (data[14] & 0x0f) * 4), data[24] << 8 | data[25]);
     printf("\t\tSender IP: %s\n", inet_ntoa(*(struct in_addr*)&data[26]));
-    printf("\t\tDest IP: %d.%d.%d.%d\n\n", data[30], data[31], data[32], data[33]);
+    printf("\t\tDest IP: %d.%d.%d.%d\n", data[30], data[31], data[32], data[33]);
 
     
 }
 
-char *get_checksum(unsigned short *addr, int len, unsigned short checksum){
+char *get_checksum(unsigned short *addr, int len){
 
     if(in_cksum(addr, len) == 0)
         return "Correct";
@@ -61,16 +85,18 @@ void header_print(pcap_t *ptr){
             IP_print(data);      // IP
         }
         else{
-            printf("\t\t Type: ARP\n\n");
-            // ARP_print(ptr);     // ARP
+            printf("\t\tType: ARP\n\n");
+            ARP_print(data);     // ARP
+            count++;
+            continue;
         }
 
         if(data[23] == IPPROTO_ICMP){      // ICMP
-             //ICMP_print(ptr);
+            ICMP_print(data);
          }
-        // else if (data[24] == IPPROTO_TCP){    // TCP
-        //     TCP_print(ptr);
-        // }
+        else if (data[23] == IPPROTO_TCP){    // TCP
+            TCP_print(data);
+         }
         else if (data[23] == IPPROTO_UDP){   // UDP
              UDP_print(data);
          }
@@ -78,7 +104,21 @@ void header_print(pcap_t *ptr){
     }
 }
 
-
+void ARP_print(const u_int8_t *data){
+    printf("\tARP header\n");
+    if (data[21] !=  2)
+    {
+        printf("\t\tOpcode: %s\n", "Request");
+       
+    }
+    else{
+        printf("\t\tOpcode: %s\n", "Reply");
+    }
+    printf("\t\tSender MAC: %x:%x:%x:%x:%x:%x\n", data[22], data[23], data[24], data[25], data[26], data[27]);
+    printf("\t\tSender IP: %d.%d.%d.%d\n", data[28], data[29], data[30], data[31]);
+    printf("\t\tTarget MAC: %x:%x:%x:%x:%x:%x\n", data[32], data[33], data[34], data[35], data[36], data[37]);
+    printf("\t\tTarget IP: %d.%d.%d.%d\n\n", data[38], data[39], data[40], data[41]);
+}
 
 void ethernet_print(pcap_t *ptr, uint16_t count, const u_int8_t *data, struct pcap_pkthdr *header){
     printf("\nPacket number: %d  ", count);
@@ -102,11 +142,28 @@ pcap_t *trace_init(char* program){
     return pointer;
 }
 
+void ICMP_print(const u_int8_t *data){
+    printf("\n\tICMP Header\n");
+
+    if ( ( ((data[14] & 0xf0) >> 4) != 4) && (((data[14] & 0xf0) >> 4) != 6) ){
+        printf("\t\tType: %d\n", 109);
+    }
+    else if (data[34] == 0)
+    {
+       printf("\t\tType: %s\n", "Reply");
+    }
+    else if(data[34] == 8){
+        printf("\t\tType: %s\n", "Request");
+    }
+
+    
+}
+
 
 void UDP_print(const u_int8_t *data){
     uint16_t source_port = data[34] << 8 | data[35];
     uint16_t destination_port = data[36] << 8 | data[37];
-    printf("\tUDP Header\n");
+    printf("\n\tUDP Header\n");
     if(source_port == 53){
         printf("\t\tSource Port:  %s\n", "DNS");
     }
