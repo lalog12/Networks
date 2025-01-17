@@ -22,8 +22,29 @@ void TCP_print(const u_int8_t *data){
     printf("\t\tFIN Flag: %s\n", get_yes_no(data[47] & 0x01));
     printf("\t\tACK Flag: %s\n", get_yes_no(data[47] & 0x08));
     printf("\t\tWindow Size: %d\n", ntohs(*(uint16_t*)&data[48]));
-   // printf("\t\tChecksum: %s (0x%04x)\n");
+    printf("\t\tChecksum: %s (0x%04x)\n", get_checksum(TCP_checksum(data), 12), data[50] << 8 | data[51]);
 }
+
+uint16_t *TCP_checksum(const u_int8_t *data) {
+    // Twice as many uint16_t elements since each is 2 bytes
+    static uint16_t TCP_pseudo_header[6];  // 12 bytes total (6 * 2 bytes)
+    
+    // Copy as 16-bit 
+    TCP_pseudo_header[0] = ntohs(*(uint16_t*)&data[26]);    // First half of source IP
+    TCP_pseudo_header[1] = ntohs(*(uint16_t*)&data[28]);    // Second half of source IP
+    TCP_pseudo_header[2] = ntohs(*(uint16_t*)&data[30]);    // First half of dest IP
+    TCP_pseudo_header[3] = ntohs(*(uint16_t*)&data[32]);    // Second half of dest IP
+    
+    // Zero and protocol as 16-bit value
+    TCP_pseudo_header[4] = (0 << 8) | 6;    // Zero byte and protocol combined
+    
+    // TCP length as 16-bit value
+    uint16_t TCP_segment_length = ntohs(*(uint16_t*)&data[16]) - ((data[14] & 0x0f) * 4);
+    TCP_pseudo_header[5] = TCP_segment_length;
+
+    return TCP_pseudo_header;
+}
+
 
 char *get_yes_no(uint8_t flag){
     if(flag != 0){
@@ -109,7 +130,6 @@ void ARP_print(const u_int8_t *data){
     if (data[21] !=  2)
     {
         printf("\t\tOpcode: %s\n", "Request");
-       
     }
     else{
         printf("\t\tOpcode: %s\n", "Reply");

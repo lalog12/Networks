@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <pcap.h>
 #include <stdint.h>
-
+#include <string.h>
 
 typedef struct my_pcap my_pcap_t;
 
@@ -17,6 +17,8 @@ void ethernet_print(pcap_t *ptr, uint16_t count, const u_int8_t *data, struct pc
 void IP_print(const u_int8_t *data);
 
 void TCP_print(const u_int8_t *data);
+
+uint16_t *TCP_checksum(const u_int8_t *data);
 
 void UDP_print(const u_int8_t *data);
 
