@@ -18,7 +18,9 @@ void IP_print(const u_int8_t *data);
 
 void TCP_print(const u_int8_t *data);
 
-uint16_t *TCP_checksum(const u_int8_t *data);
+uint16_t *TCP_pseudoheader(const u_int8_t *data);
+
+uint16_t *TCP_checksum_buffer(const u_int8_t *data, uint16_t *pseudoheader);
 
 void UDP_print(const u_int8_t *data);
 
@@ -26,9 +28,7 @@ void ICMP_print(const u_int8_t *data);
 
 void ARP_print(const u_int8_t *data);
 
-char *get_yes_no(uint8_t flag);
-
-// TCP_checksum(const u_int8_t *data);
+char *get_yes_no(uint16_t flag);
 
 char *get_protocol(uint8_t protocol);
 

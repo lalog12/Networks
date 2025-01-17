@@ -12,41 +12,66 @@ int main(int argc, char *argv[]){
 
 void TCP_print(const u_int8_t *data){
     printf("\n\tTCP Header\n");
-    printf("\t\tSource Port: %d\n", ntohs(*(uint16_t*)&data[34]));
-    printf("\t\tDest Port: %d\n", ntohs(*(uint16_t*)&data[36]));
-    printf("\t\tSequence Number: %d\n", ntohl(*(uint32_t*)&data[38]));
-    printf("\t\tAck Number: %u\n", ntohl(*(u_int32_t*)&data[42]));
-    printf("\t\tData Offset (bytes): %d\n", (data[14] & 0x0f) * 4);
+    printf("\t\tSource Port:  %d\n", ntohs(*(uint16_t*)&data[34]));
+    printf("\t\tDest Port:  %d\n", ntohs(*(uint16_t*)&data[36]));
+    printf("\t\tSequence Number: %u\n", ntohl(*(uint32_t*)&data[38]));
+    printf("\t\tACK Number: %u\n", ntohl(*(u_int32_t*)&data[42]));
+    printf("\t\tData Offset (bytes): %u\n", ((data[46] & 0xf0) >> 4) * 4);
     printf("\t\tSYN Flag: %s\n", get_yes_no(data[47] & 0x02));
     printf("\t\tRST Flag: %s\n", get_yes_no(data[47] & 0x04));
     printf("\t\tFIN Flag: %s\n", get_yes_no(data[47] & 0x01));
-    printf("\t\tACK Flag: %s\n", get_yes_no(data[47] & 0x08));
+    printf("\t\tACK Flag: %s\n", get_yes_no(data[47] & 0x10));
     printf("\t\tWindow Size: %d\n", ntohs(*(uint16_t*)&data[48]));
-    printf("\t\tChecksum: %s (0x%04x)\n", get_checksum(TCP_checksum(data), 12), data[50] << 8 | data[51]);
+    uint16_t *pseudoheader = TCP_pseudoheader(data);
+
+    
+    uint16_t IP_total_length = ntohs(*(uint16_t*)&data[16]);
+    uint16_t IP_header_length = (data[14] & 0x0f) * 4;
+    uint16_t TCP_segment_length = IP_total_length - IP_header_length;
+    uint16_t TCP_checksum_buffer_len = 12 + TCP_segment_length;
+    uint16_t TCP_checksum_buffer[TCP_checksum_buffer_len];
+    memcpy(&TCP_checksum_buffer, pseudoheader, 12);
+    memcpy(&TCP_checksum_buffer[6], &data[34], TCP_segment_length);
+
+    printf("\t\tChecksum: %s (0x%04x)\n", get_checksum((unsigned short*)&TCP_checksum_buffer, TCP_checksum_buffer_len), ntohs(*(uint16_t*)&data[50]));
 }
 
-uint16_t *TCP_checksum(const u_int8_t *data) {
-    // Twice as many uint16_t elements since each is 2 bytes
-    static uint16_t TCP_pseudo_header[6];  // 12 bytes total (6 * 2 bytes)
+
+
+
+char *get_checksum(unsigned short *addr, int len){
+
+    if(in_cksum(addr, len) == 0)
+        return "Correct";
+    else
+        return "Incorrect";
+}
+
+uint16_t *TCP_pseudoheader(const u_int8_t *data) {
+    static uint16_t TCP_pseudo_header[6];  
     
-    // Copy as 16-bit 
-    TCP_pseudo_header[0] = ntohs(*(uint16_t*)&data[26]);    // First half of source IP
-    TCP_pseudo_header[1] = ntohs(*(uint16_t*)&data[28]);    // Second half of source IP
-    TCP_pseudo_header[2] = ntohs(*(uint16_t*)&data[30]);    // First half of dest IP
-    TCP_pseudo_header[3] = ntohs(*(uint16_t*)&data[32]);    // Second half of dest IP
-    
-    // Zero and protocol as 16-bit value
-    TCP_pseudo_header[4] = (0 << 8) | 6;    // Zero byte and protocol combined
-    
-    // TCP length as 16-bit value
-    uint16_t TCP_segment_length = ntohs(*(uint16_t*)&data[16]) - ((data[14] & 0x0f) * 4);
-    TCP_pseudo_header[5] = TCP_segment_length;
+    // IP addresses stay in network order
+    // Source IP Address
+    memcpy(&TCP_pseudo_header[0], &data[26], 4);
+    // Destination IP Address
+    memcpy(&TCP_pseudo_header[2], &data[30], 4);
+
+
+    // Reserved field and Protocol
+    uint16_t var = htons(0x0006);
+    memcpy(&TCP_pseudo_header[4], &var, 2);
+
+    // TCP segment length
+    uint16_t IP_total_length = ntohs(*(uint16_t*)&data[16]);
+    uint16_t IP_header_length = (data[14] & 0x0f) * 4;
+    uint16_t TCP_segment_length = htons(IP_total_length - IP_header_length);
+    memcpy(&TCP_pseudo_header[5], &TCP_segment_length, 2);
 
     return TCP_pseudo_header;
 }
 
 
-char *get_yes_no(uint8_t flag){
+char *get_yes_no(uint16_t flag){
     if(flag != 0){
         return "Yes";
     }
@@ -68,17 +93,8 @@ void IP_print(const u_int8_t *data){
     printf("\t\tChecksum: %s (0x%04x)\n", get_checksum((unsigned short*)&data[14], (data[14] & 0x0f) * 4), data[24] << 8 | data[25]);
     printf("\t\tSender IP: %s\n", inet_ntoa(*(struct in_addr*)&data[26]));
     printf("\t\tDest IP: %d.%d.%d.%d\n", data[30], data[31], data[32], data[33]);
-
-    
 }
 
-char *get_checksum(unsigned short *addr, int len){
-
-    if(in_cksum(addr, len) == 0)
-        return "Correct";
-    else
-        return "Incorrect";
-}
 
 char *get_protocol(uint8_t protocol){
         if (protocol == IPPROTO_ICMP)
@@ -114,13 +130,16 @@ void header_print(pcap_t *ptr){
 
         if(data[23] == IPPROTO_ICMP){      // ICMP
             ICMP_print(data);
-         }
+        }
+
         else if (data[23] == IPPROTO_TCP){    // TCP
             TCP_print(data);
          }
+
         else if (data[23] == IPPROTO_UDP){   // UDP
              UDP_print(data);
-         }
+        }
+
         count++;
     }
 }
@@ -130,6 +149,7 @@ void ARP_print(const u_int8_t *data){
     if (data[21] !=  2)
     {
         printf("\t\tOpcode: %s\n", "Request");
+       
     }
     else{
         printf("\t\tOpcode: %s\n", "Reply");
