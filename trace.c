@@ -223,8 +223,8 @@ void ICMP_print(const u_int8_t *data, const uint16_t total_length, const uint16_
 
 void UDP_print(const u_int8_t *data, const uint16_t total_length, const uint16_t IP_header_length){
     uint16_t UDP_start = 13 + IP_header_length;
-    uint16_t source_port = data[UDP_start + 1] << 8 | data[UDP_start + 2];
-    uint16_t destination_port = data[UDP_start + 3] << 8 | data[UDP_start + 4];
+    uint16_t source_port = ntohs(*(uint16_t*)(&data[UDP_start + 1]));
+    uint16_t destination_port = ntohs(*(uint16_t*)(&data[UDP_start + 3]));
     printf("\n\tUDP Header\n");
     if(source_port == 53){
         printf("\t\tSource Port:  %s\n", "DNS");
@@ -238,5 +238,4 @@ void UDP_print(const u_int8_t *data, const uint16_t total_length, const uint16_t
     else{
         printf("\t\tDest Port:  %d\n", destination_port);
     }
-
 }
